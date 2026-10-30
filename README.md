@@ -20,7 +20,7 @@
 
 ```bash
 # 1. install (Debian/Ubuntu)
-curl -fsSL https://raw.githubusercontent.com/OWNER/rmon/main/install.sh | sudo RMON_REPO=OWNER/rmon bash
+curl -fsSL https://raw.githubusercontent.com/Bismela21/rmon/main/install.sh | sudo RMON_REPO=Bismela21/rmon bash
 # (or download the .deb from the Releases page and: sudo apt install ./rmon_*_all.deb)
 
 # 2. answer ~8 short questions (everything has a default or is detected)

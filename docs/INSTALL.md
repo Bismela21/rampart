@@ -4,10 +4,10 @@
 
 ```bash
 # one line (checks the SHA-256 of the package)
-curl -fsSL https://raw.githubusercontent.com/OWNER/rmon/main/install.sh | sudo RMON_REPO=OWNER/rmon bash
+curl -fsSL https://raw.githubusercontent.com/Bismela21/rmon/main/install.sh | sudo RMON_REPO=Bismela21/rmon bash
 
 # or by hand
-wget https://github.com/OWNER/rmon/releases/latest/download/rmon_all.deb
+wget https://github.com/Bismela21/rmon/releases/latest/download/rmon_all.deb
 sudo apt install ./rmon_all.deb
 ```
 
@@ -16,7 +16,7 @@ The package installs the Python code (no third-party dependency), three systemd 
 ## From source
 
 ```bash
-git clone https://github.com/OWNER/rmon && cd rmon
+git clone https://github.com/Bismela21/rmon && cd rmon
 python3 -m unittest discover -s tests          # 34 tests
 python3 packaging/build_deb.py && sudo apt install ./dist/rmon_*_all.deb
 ```

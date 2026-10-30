@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Builds rmon_<version>_all.deb with nothing but the Python standard library (works on Windows, macOS and Linux CI).
-    python packaging/build_deb.py [--out dist] [--homepage https://github.com/OWNER/rmon] [--maintainer "Name <mail>"]"""
+    python packaging/build_deb.py [--out dist] [--homepage https://github.com/Bismela21/rmon] [--maintainer "Name <mail>"]"""
 import argparse
 import gzip
 import hashlib
@@ -195,7 +195,7 @@ Description: self-hosted guard for web servers
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "dist"))
-    ap.add_argument("--homepage", default="https://github.com/OWNER/rmon")
+    ap.add_argument("--homepage", default="https://github.com/Bismela21/rmon")
     ap.add_argument("--maintainer", default="RMON contributors <rmon@invalid.example>")
     a = ap.parse_args()
     print(build(a.out, a.homepage, a.maintainer))

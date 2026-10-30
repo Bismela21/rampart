@@ -1,10 +1,10 @@
 #!/bin/sh
 # RMON installer: downloads the latest .deb from GitHub Releases, verifies its SHA-256, installs it with apt.
-#   curl -fsSL https://raw.githubusercontent.com/OWNER/rmon/main/install.sh | sudo RMON_REPO=OWNER/rmon bash
+#   curl -fsSL https://raw.githubusercontent.com/Bismela21/rmon/main/install.sh | sudo RMON_REPO=Bismela21/rmon bash
 # Nothing else is downloaded or executed; read this file first if you prefer.
 set -eu
 
-REPO="${RMON_REPO:-OWNER/rmon}"
+REPO="${RMON_REPO:-Bismela21/rmon}"
 VERSION="${RMON_VERSION:-latest}"
 
 [ "$(id -u)" -eq 0 ] || { echo "Run as root (sudo)." >&2; exit 1; }

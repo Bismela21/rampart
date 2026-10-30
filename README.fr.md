@@ -19,7 +19,7 @@
 ## Démarrage rapide
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/rmon/main/install.sh | sudo RMON_REPO=OWNER/rmon bash
+curl -fsSL https://raw.githubusercontent.com/Bismela21/rmon/main/install.sh | sudo RMON_REPO=Bismela21/rmon bash
 sudo rmon setup          # ~8 questions courtes, tout a une valeur par défaut ou est détecté
 # collez les 1-2 lignes affichées dans votre config Caddy / nginx, puis :
 sudo systemctl enable --now rmon-guard rmon-challenge
