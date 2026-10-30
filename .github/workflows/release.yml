@@ -1,0 +1,31 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s tests
+      - run: python packaging/build_deb.py --homepage "https://github.com/${{ github.repository }}"
+      - name: stable file names for install.sh
+        run: |
+          cd dist
+          cp rmon_*_all.deb rmon_all.deb
+          sha256sum rmon_all.deb > rmon_all.deb.sha256
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/rmon_*_all.deb
+            dist/rmon_*_all.deb.sha256
+            dist/rmon_all.deb
+            dist/rmon_all.deb.sha256
+          generate_release_notes: true

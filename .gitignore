@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+.venv/
+# never commit local configuration or secrets
+config.json
+secrets.json
+*.key
+*.jks
+*.keystore
+google-services.json
+.env
+answers.json
+*.log
