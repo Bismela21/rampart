@@ -1,8 +1,14 @@
+<p align="center"><img src="assets/banner.png" alt="RMON - le garde qui ne bannit jamais un humain" width="100%"></p>
+
 # RMON
 
 **Un garde auto-hébergé pour vos serveurs web.** Il lit votre journal d'accès, piège les scanners, évalue les comportements à risque, demande un captcha d'une seconde aux visiteurs suspects au lieu de les bannir, bloque les outils d'attaque par empreinte, pose des fichiers pièges sur vos machines et vous alerte (notification, Telegram, e-mail, webhook, même un **appel téléphonique**). Fonctionne avec **Caddy** ou **nginx**, sur n'importe quel serveur Debian/Ubuntu, **sans envoyer aucune donnée** sauf ce que vous activez.
 
 > English: [README.md](README.md)
+
+> **Le garde qui ne bannit jamais un humain.** Certain : ban immédiat. Ambigu : un captcha d'une seconde qu'un humain ne remarque pas et qu'un robot ne passe pas.
+
+<p align="center"><img src="docs/img/challenge.png" width="49%"> <img src="docs/img/blocked-fr-dark.png" width="49%"></p>
 
 ## Ce qui le distingue
 
