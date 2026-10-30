@@ -154,8 +154,13 @@ def collect():
         p = os.path.join(ROOT, doc)
         if os.path.exists(p):
             add("usr/share/doc/rmon/" + doc, open(p, "rb").read(), 0o644)
-    for p in sorted(os.listdir(os.path.join(ROOT, "docs"))) if os.path.isdir(os.path.join(ROOT, "docs")) else []:
-        add("usr/share/doc/rmon/docs/" + p, open(os.path.join(ROOT, "docs", p), "rb").read(), 0o644)
+    docs_root = os.path.join(ROOT, "docs")
+    if os.path.isdir(docs_root):
+        for base, _dirs, fs in os.walk(docs_root):
+            for f in sorted(fs):
+                full = os.path.join(base, f)
+                rel = os.path.relpath(full, docs_root).replace(os.sep, "/")
+                add("usr/share/doc/rmon/docs/" + rel, open(full, "rb").read(), 0o644)
     return data, "".join(md5)
 
 
