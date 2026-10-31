@@ -27,6 +27,7 @@ Self-hosted. Caddy or nginx. Python standard library only. **No telemetry, no ac
 | | |
 |---|---|
 | **Two-tier detection** | *Certain* (requests for `/.env`, `/.git`, `phpinfo.php`, PHP in uploads, SQL injection, scanner user-agents) &rarr; instant ban. *Ambiguous* (many 404s, failed logins, a rising risk score) &rarr; **challenge, never a ban**. |
+| **Botnet-aware** | Floods, user-agent rotation, WebDAV/TRACE probing, user enumeration, credential-stuffing waves spread over many addresses, and neighbouring addresses of a /24 already caught: all feed the same risk score and end in a challenge, never in a ban of a human. |
 | **Bot probability** | The challenge combines the captcha score, the browser environment (webdriver, headless, software GL), *behaviour* (trusted input events, the shape of the mouse trajectory) and history into one probability. Unsure? One confirmation click. Clearly a robot? It stays blocked. The model is ~40 readable lines: [`rmon/rules.py`](rmon/rules.py). |
 | **Fingerprinting** | Attackers rotate addresses, not tools. The same rare fingerprint behind 3 banned addresses (and no normal visitor) gets the *tool* blocked. A fingerprint seen from one of your trusted addresses is never blocked. |
 | **Canary files** | Fake `passwords.txt`, `.aws/credentials`, SSH keys and SQL dumps. Opening one raises an alert naming the exact process and, for SSH sessions, the client address, which is banned. The open is always allowed: RMON only watches. |

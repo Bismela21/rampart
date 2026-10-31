@@ -26,7 +26,13 @@ INJECTION = re.compile(r"(?i)(union(%20|\+|\s)+(all(%20|\+|\s)+)?select|informat
 SCANNER_UA = re.compile(r"(?i)(sqlmap|nikto|nmap|masscan|acunetix|wpscan|nuclei|dirbuster|gobuster|zgrab|jaeles|havij|nessus|openvas)")
 
 # --- ambiguous detections (a human can trigger them): they lead to a captcha challenge, never directly to a ban ---------------------
-SOFT_PREFIXES = ("scan (", "force brute", "bouclier", "risk", "login")
+# Methods a public website never needs (WebDAV, debugging, proxy probing): weighted into the risk score, never a ban by themselves
+ODD_METHODS = frozenset(("TRACE", "TRACK", "CONNECT", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "SEARCH", "DEBUG", "PURGE"))
+# Account / user enumeration probes (WordPress author scans, REST user listing)
+ENUM = re.compile(r"(?i)(^|[?&])author=\d+|/wp-json/wp/v2/users|[?&]rest_route=/wp/v2/users|/wp-login\.php\?action=register|/\?s=%24%7b|/wp-json/oembed/1\.0/proxy")
+ASSET = re.compile(r"(?i)\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|avif|woff2?|ttf|otf|eot|mp4|webm|mp3)$")
+
+SOFT_PREFIXES = ("scan (", "force brute", "bouclier", "risk", "login", "request flood", "login protection")
 
 BOT_UA = re.compile(r"(?i)(python-requests|python-urllib|aiohttp|httpx|curl/|wget/|go-http-client|okhttp|libwww|java/|apache-httpclient|axios|node-fetch|scrapy|headless|"
                     r"phantomjs|selenium|puppeteer|playwright|mechanize|httpclient|zgrab|masscan)")
@@ -43,6 +49,12 @@ def path_trap(path, extra_substr=(), extra_exact=(), allow=()):
         return False
     return (any(s in p for s in TRAP_SUBSTR) or any(s.lower() in p for s in extra_substr) or bool(TRAP_ROOTFILE.match(p)) or p in TRAP_EXACT
             or p in {x.lower() for x in extra_exact})
+
+
+def mainstream_browser(comps):
+    """True when the fingerprint looks like an ordinary desktop/mobile browser (shared by a huge number of real visitors)."""
+    ua = comps.get("ua", "")
+    return ua.startswith("Mozilla/5.0") and bool(re.search(r"(Chrome|Firefox|Safari|Edg)/", ua)) and bool(comps.get("al")) and not BOT_UA.search(ua)
 
 
 def ua_anomaly(ua, al="", sua=""):

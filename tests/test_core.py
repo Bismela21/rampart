@@ -159,6 +159,12 @@ class TestEngine(Base):
             types += [e["type"] for e in self.feed(mk("45.9.31.%d" % (i + 1), "/.env", 404))]
         self.assertNotIn("fpban", types)
 
+    def test_ordinary_browser_fingerprint_needs_much_stronger_proof(self):
+        for i in range(4):   # 4 banned addresses with a plain Chrome fingerprint and one normal visitor: NOT enough to block "Chrome"
+            self.feed(mk("45.9.33.%d" % (i + 1), "/.env", 404))
+        self.feed(mk("81.2.2.2", "/", 200))
+        self.assertEqual(self.store.active("fpbans", self.t), {})
+
     def test_trusted_address_protects_its_fingerprint(self):
         self.cfg["guard"]["never_ban"] = ["45.9.32.99"]
         eng = engine.Engine(self.cfg, self.store)
@@ -294,6 +300,75 @@ class TestPages(unittest.TestCase):
         h = pages.render("ban", cfg, "")
         self.assertNotIn("google.com/recaptcha", h)
         self.assertNotIn("hcaptcha", h)
+
+
+class TestBotSignals(Base):
+    def kinds(self, evs):
+        return [e["type"] for e in evs]
+
+    def test_webdav_and_trace_probing_is_challenged(self):
+        ev = []
+        for i, m in enumerate(("TRACE", "PROPFIND", "TRACE", "PROPFIND", "CONNECT", "TRACE")):
+            ev += self.feed(mk("45.9.70.1", "/p%d" % i, 405, m), 2)
+        self.assertEqual(self.kinds(ev), ["challenge"])
+
+    def test_user_enumeration_is_challenged_but_one_author_page_is_not(self):
+        self.assertEqual(self.feed(mk("45.9.70.2", "/", 200, query="author=1")), [])
+        ev = []
+        for i in range(2, 9):
+            ev += self.feed(mk("45.9.70.3", "/", 200, query="author=%d" % i), 3)
+        self.assertEqual(self.kinds(ev), ["challenge"])
+
+    def test_page_flood_is_challenged_but_a_busy_human_is_not(self):
+        human = []
+        for i in range(40):                       # 40 pages in 60 s is a very busy reader
+            human += self.feed(mk("45.9.70.4", "/page%d" % i, 200), 1.5)
+        self.assertEqual(human, [])
+        bot = []
+        for i in range(160):
+            bot += self.feed(mk("45.9.70.5", "/item%d" % i, 200), 0.3)
+        self.assertEqual(self.kinds(bot), ["challenge"])
+
+    def test_static_assets_do_not_count_as_a_flood(self):
+        ev = []
+        for i in range(300):                      # one page load fetches many assets quickly
+            ev += self.feed(mk("45.9.70.6", "/static/a%d.js" % i, 200), 0.05)
+        self.assertEqual(ev, [])
+
+    def test_user_agent_rotation_is_challenged(self):
+        ev = []
+        for i in range(12):
+            ev += self.feed(mk("45.9.70.7", "/page%d" % i, 200, ua="Mozilla/5.0 (X11; Linux) Firefox/%d.0" % (100 + i)), 4)
+        self.assertEqual(self.kinds(ev), ["challenge"])
+        calm = []
+        for i in range(12):                       # same browser, same pages: nothing
+            calm += self.feed(mk("45.9.70.8", "/page%d" % i, 200), 4)
+        self.assertEqual(calm, [])
+
+    def test_a_hot_slash24_lowers_the_threshold_for_its_neighbours_only(self):
+        for i in range(4):                        # four addresses of 45.9.80.0/24 caught
+            self.feed(mk("45.9.80.%d" % (i + 1), "/.env", 404))
+        self.eng._lists_t = 0
+
+        def light(ip):                            # a few missing pages: harmless on its own (risk about 3.5)
+            ev = []
+            for i in range(8):
+                ev += self.feed(mk(ip, "/m%d" % i, 404), 2)
+            return ev
+        self.assertEqual(self.kinds(light("45.9.80.50")), ["challenge"])
+        self.assertEqual(light("45.9.90.50"), [])  # same behaviour elsewhere: left alone
+
+    def test_credential_stuffing_wave_challenges_unverified_logins_but_not_verified_ones(self):
+        for n in range(8):                         # 8 different addresses, 3 failures each = a wave
+            for _ in range(3):
+                self.feed(mk("45.9.71.%d" % (n + 1), "/wp-login.php", 200, "POST"), 1)
+        self.eng._lists_t = 0
+        ev = self.feed(mk("45.9.72.1", "/wp-login.php", 200, "POST"))
+        self.assertEqual(self.kinds(ev), ["challenge"])
+        self.store.pass_challenge("45.9.72.2", self.cfg, self.t)
+        self.eng._lists_t = 0
+        self.assertEqual(self.feed(mk("45.9.72.2", "/wp-login.php", 200, "POST")), [])
+        self.assertEqual(self.feed(mk("45.9.72.3", "/wp-login.php", 302, "POST")), [])   # a successful login (redirect) is never challenged
 
 
 class TestNotify(unittest.TestCase):

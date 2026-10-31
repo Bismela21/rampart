@@ -25,7 +25,8 @@ class Engine:
         self.login_paths = tuple(p.lower() for p in g.get("login_paths", []))
         self.s = {"login": collections.defaultdict(collections.deque), "n404": collections.defaultdict(collections.deque),
                   "paths": collections.defaultdict(collections.deque), "risk": {}, "hits": collections.defaultdict(collections.deque), "recent": {},
-                  "fp": {}, "fp_sent": {}, "crawler": {}}
+                  "fp": {}, "fp_sent": {}, "crawler": {}, "ua_seen": collections.defaultdict(collections.deque), "nonasset": collections.defaultdict(collections.deque),
+                  "net_hits": collections.defaultdict(dict), "hot_until": {}, "loginfail": collections.deque(), "wave_until": 0.0}
         self._lists_t = 0
         self._banned, self._chall, self._pass = set(), set(), set()
 
@@ -78,7 +79,10 @@ class Engine:
 
     def _fp_decide(self, h, now):
         rec = self.s["fp"].get(h)
-        if not rec or rec["trusted"] or len(rec["bad"]) < FP_BAD_MIN or len(rec["ok"] - rec["bad"]) > 1 or now - self.s["fp_sent"].get(h, 0) < 600:
+        if not rec or rec["trusted"] or now - self.s["fp_sent"].get(h, 0) < 600:
+            return None
+        main = rules.mainstream_browser(rec["c"])   # a fingerprint that looks like an ordinary browser is shared by millions: much stricter proof required
+        if len(rec["bad"]) < (6 if main else FP_BAD_MIN) or len(rec["ok"] - rec["bad"]) > (0 if main else 1):
             return None
         ua = rec["c"]["ua"]
         if len(ua) < 8 or rules.GOOD_UA.search(ua) or len(self.store.active("fpbans", now)) >= 20:
@@ -107,7 +111,18 @@ class Engine:
         if rules.INJECTION.search(req.query) or rules.INJECTION.search(path) or rules.SCANNER_UA.search(req.ua):
             return "injection / scanner", True
         ip = req.ip
-        if req.method == "POST" and path.endswith(self.login_paths):
+        is_login = req.method == "POST" and path.endswith(self.login_paths)
+        if is_login and req.status not in (302, 303):
+            # credential-stuffing wave: many failures from many different addresses. While it lasts, every unverified address that tries to log in is challenged first.
+            lf = self.s["loginfail"]
+            lf.append((now, ip))
+            while lf and now - lf[0][0] > 300:
+                lf.popleft()
+            if len(lf) >= 20 and len({i for _, i in lf}) >= 6:
+                self.s["wave_until"] = now + 900
+        if is_login and req.status not in (302, 303) and now < self.s["wave_until"] and netutil.target(ip) not in self._pass:
+            return "login protection (credential-stuffing wave)", False
+        if is_login:
             if req.status in (302, 303):
                 return None, False
             dq = self.s["login"][ip]
@@ -123,16 +138,41 @@ class Engine:
                 dq.popleft()
             if len(dq) >= 20:
                 return "scan (20 missing pages in 30 s)", False
-        w = 3.0 if req.status in (403, 406) else (1.2 if req.method == "POST" and path.endswith(self.login_paths) else (0.5 if req.status == 404 else 0.0))
+        w = 3.0 if req.status in (403, 406) else (1.2 if is_login else (0.5 if req.status == 404 else 0.0))
+        asset = bool(rules.ASSET.search(path))
+        if req.method in rules.ODD_METHODS:
+            w += 3.0                                   # WebDAV / TRACE / CONNECT probing on a public site
+        if rules.ENUM.search(path + "?" + req.query):
+            w += 2.0                                   # author / user enumeration
+        if not asset:
+            na = self.s["nonasset"][ip]                # page and API requests only: a browser loads a page, then a few assets
+            na.append(now)
+            while na and now - na[0] > 60:
+                na.popleft()
+            burst = sum(1 for t in na if now - t <= 10)
+            if len(na) >= 150:
+                return "request flood (150 pages in 1 min)", False
+            if burst >= 40:
+                w += 2.0                               # 40 page requests in 10 s
+        if req.ua:
+            ua = self.s["ua_seen"][ip]
+            ua.append((now, req.ua))
+            while ua and now - ua[0][0] > 120:
+                ua.popleft()
+            if len({u for _, u in ua}) >= 6:
+                w += 3.0                               # one address cycling through many browsers: user-agent rotation
         if w and not path.startswith("/__rmon/"):
             prev = self.s["risk"].get(ip)
             val = (prev[0] * 0.5 ** ((now - prev[1]) / RISK_HALF_LIFE) if prev else 0.0) + w * (1.0 + self.ua_weight(req))
             self.s["risk"][ip] = (val, now)
             ps = self.s["paths"][ip]
-            ps.append((now, path))
+            ps.append((now, path + "?" + req.query[:40]))   # distinct targets: /?author=1, /?author=2 ... count as different pages
             while ps and now - ps[0][0] > 300:
                 ps.popleft()
-            if val >= g.get("risk_challenge", 8.0) and len({p for _, p in ps}) >= 5:
+            limit = g.get("risk_challenge", 8.0)
+            if self.s["hot_until"].get(self._net24(ip), 0) > now:
+                limit = limit * 0.375                  # a /24 already caught misbehaving: its other addresses are challenged at a third of the threshold
+            if val >= limit and len({p for _, p in ps}) >= (3 if limit < g.get("risk_challenge", 8.0) else 5):
                 return "risk score %d" % val, False
         return None, False
 
@@ -176,14 +216,33 @@ class Engine:
             return []
         if self.store.challenge(ip, self.cfg, kind, now):
             self._lists_t = 0
+            self._botnet(ip, now)
             return [{"type": "challenge", "ip": ip, "kind": kind}]
         return self._ban(req, "challenge never solved (3 detections in 24 h)", now, fp=False)
+
+    @staticmethod
+    def _net24(ip):
+        a = netutil.parse_ip(ip)
+        if a is None:
+            return None
+        return str(netutil.ipaddress.ip_network("%s/24" % a, strict=False)) if a.version == 4 else netutil.target(ip)
+
+    def _botnet(self, ip, now):
+        """>= 4 different addresses of one /24 (or IPv6 /64) challenged or banned within 15 min: the whole range is 'hot' for 30 min."""
+        n = self._net24(ip)
+        hits = self.s["net_hits"][n]
+        hits[ip] = now
+        for k in [k for k, t in hits.items() if now - t > 900]:
+            del hits[k]
+        if len(hits) >= 4:
+            self.s["hot_until"][n] = now + 1800
 
     def _ban(self, req, kind, now, fp):
         if len(self.store.active("bans", now)) >= self.cfg["guard"].get("max_active_bans", 300):
             return []
         self.store.ban(req.ip, self.cfg, kind, now)
         self._lists_t = 0
+        self._botnet(req.ip, now)
         ev = [{"type": "ban", "ip": req.ip, "kind": kind}]
         if fp:
             h = self._fp_note(req, "bad")
